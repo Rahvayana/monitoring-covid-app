@@ -29,6 +29,7 @@ dependencies:
   flutter_html: ^1.1.1
   flutter_notification: ^1.0.7
   flutter_webview_plugin: ^0.3.11
+  fluttertoast: ^7.1.6
   http: ^0.12.2
   json_table: ^1.4.0
   syncfusion_flutter_charts: ^18.4.31

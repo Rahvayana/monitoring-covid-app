@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:charts_flutter/flutter.dart' as charts;
 import 'package:flutter_html/flutter_html.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:json_table/json_table.dart';
+import 'package:monitoring_covid_app/api/api_login.dart';
 import 'package:monitoring_covid_app/dashboard.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -42,12 +44,18 @@ class _HomeState extends State<Home> {
   List<PositifData> chartPositif = [];
   List<MeninggalData> chartMeninggal = [];
   var sembuh, positif, meninggal, kesimpulan;
+  var errSembuh = 0, errPositif = 0, errMeninggal = 0;
+  TextEditingController days;
+  TextEditingController _controller = new TextEditingController();
+  bool _isLoading = false;
+
+  var hari = 7;
 
   Future cardData() async {
     final jsonResponse = await http
         .get('https://monitoring-covid-api.herokuapp.com/api/apps/index');
     final myJson = json.decode(jsonResponse.body);
-    print(myJson['positif']);
+    // print(myJson['positif']);
     setState(() {
       positif = myJson['positif'];
       sembuh = myJson['sembuh'];
@@ -55,39 +63,48 @@ class _HomeState extends State<Home> {
     });
   }
 
-  Future loadSembuhData() async {
-    final jsonResponse = await http.get(
-        'https://monitoring-covid-api.herokuapp.com/api/apps/movingAvgSembuh');
+  Future loadSembuhData(String day) async {
+    final jsonResponse = await http.post(
+        'https://monitoring-covid-api.herokuapp.com/api/apps/movingAvgSembuh',
+        body: {'day': day});
     final myJson = json.decode(jsonResponse.body);
-    // print(myJson);
+    print(myJson['sembuh']);
     setState(() {
-      for (Map i in myJson) {
+      chartSembuh.clear();
+      for (Map i in myJson['sembuh']) {
         chartSembuh.add(SembuhData.fromJson(i));
       }
+      errSembuh = myJson['error'];
     });
   }
 
-  Future loadPositifData() async {
-    final jsonResponse1 = await http.get(
-        'https://monitoring-covid-api.herokuapp.com/api/apps/movingAvgPositif');
+  Future loadPositifData(String day) async {
+    final jsonResponse1 = await http.post(
+        'https://monitoring-covid-api.herokuapp.com/api/apps/movingAvgPositif',
+        body: {'day': day});
     final myJson1 = json.decode(jsonResponse1.body);
     // print(myJson1);
     setState(() {
-      for (Map n in myJson1) {
+      chartPositif.clear();
+      for (Map n in myJson1['positif']) {
         chartPositif.add(PositifData.fromJson(n));
       }
+      errPositif = myJson1['error'];
     });
   }
 
-  Future loadMeninggalData() async {
-    final jsonResponse = await http.get(
-        'https://monitoring-covid-api.herokuapp.com/api/apps/movingAvgMeninggal');
+  Future loadMeninggalData(String day) async {
+    final jsonResponse = await http.post(
+        'https://monitoring-covid-api.herokuapp.com/api/apps/movingAvgMeninggal',
+        body: {'day': day});
     final myJson = json.decode(jsonResponse.body);
     // print(myJson);
+    chartMeninggal.clear();
     setState(() {
-      for (Map i in myJson) {
+      for (Map i in myJson['meninggal']) {
         chartMeninggal.add(MeninggalData.fromJson(i));
       }
+      errMeninggal = myJson['error'];
     });
   }
 
@@ -95,7 +112,7 @@ class _HomeState extends State<Home> {
     final jsonResponse = await http
         .get('https://monitoring-covid-api.herokuapp.com/api/apps/kesimpulan');
     final myJson = json.decode(jsonResponse.body);
-    print(myJson['post']);
+    // print(myJson['post']);
     setState(() {
       kesimpulan = myJson['post'];
     });
@@ -106,7 +123,7 @@ class _HomeState extends State<Home> {
     final jsonResponse1 = await http
         .get('https://monitoring-covid-api.herokuapp.com/api/apps/case');
     final myJson1 = json.decode(jsonResponse1.body);
-    print(myJson1);
+    // print(myJson1);
     if (myJson1 != 0) {
       setState(() {
         dataCovid = myJson1;
@@ -117,9 +134,9 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    loadSembuhData();
-    loadPositifData();
-    loadMeninggalData();
+    loadSembuhData("7");
+    loadPositifData("7");
+    loadMeninggalData("7");
     cardData();
     getKesimpulan();
     loadDataCovid();
@@ -231,79 +248,143 @@ class _HomeState extends State<Home> {
                   elevation: 5.0,
                 ),
               ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Container(
+                    width: 250,
+                    height: 100,
+                    margin: EdgeInsets.only(top: 5),
+                    child: TextFormField(
+                      autofocus: false,
+                      controller: _controller,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: <TextInputFormatter>[
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                      ],
+                      decoration: InputDecoration(
+                        hintText: 'Jumlah Hari',
+                      ),
+                    ),
+                  ),
+                  RaisedButton(
+                    child: Text(
+                      " Cek",
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    onPressed: () {
+                      print('hari ${_controller.text}');
+                      loadSembuhData(_controller.text);
+                      loadPositifData(_controller.text);
+                      loadMeninggalData(_controller.text);
+                    },
+                    color: Colors.greenAccent,
+                    textColor: Colors.white,
+                    splashColor: Colors.grey,
+                    padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                  ),
+                ],
+              ),
               Container(
                 margin: EdgeInsets.all(10.0),
-                height: 200.0,
+                // height: 200.0,
                 child: Card(
                   elevation: 5,
-                  child: SfCartesianChart(
-                      primaryXAxis: CategoryAxis(),
-                      // Chart title
-                      title: ChartTitle(text: 'Moving Average (Sembuh)'),
-                      // Enable legend
-                      // legend: Legend(isVisible: true),
-                      // Enable tooltip
-                      tooltipBehavior: TooltipBehavior(enable: true),
-                      series: <ChartSeries<SembuhData, String>>[
-                        LineSeries<SembuhData, String>(
-                            dataSource: chartSembuh,
-                            xValueMapper: (SembuhData sales, _) => sales.year,
-                            yValueMapper: (SembuhData sales, _) => sales.sales,
-                            // Enable data label
-                            dataLabelSettings:
-                                DataLabelSettings(isVisible: true))
-                      ]),
+                  child: Column(
+                    children: [
+                      SfCartesianChart(
+                          primaryXAxis: CategoryAxis(),
+                          // Chart title
+                          title: ChartTitle(text: 'Moving Average (Sembuh)'),
+                          // Enable legend
+                          // legend: Legend(isVisible: true),
+                          // Enable tooltip
+                          tooltipBehavior: TooltipBehavior(enable: true),
+                          series: <ChartSeries<SembuhData, String>>[
+                            LineSeries<SembuhData, String>(
+                                dataSource: chartSembuh,
+                                xValueMapper: (SembuhData sales, _) =>
+                                    sales.year,
+                                yValueMapper: (SembuhData sales, _) =>
+                                    sales.sales,
+                                // Enable data label
+                                dataLabelSettings:
+                                    DataLabelSettings(isVisible: true))
+                          ]),
+                      Container(
+                          margin: EdgeInsets.all(10),
+                          child: Text(
+                              'Error:' + (errSembuh.abs() ?? 0).toString())),
+                    ],
+                  ),
                 ),
               ),
               Container(
                   margin: EdgeInsets.all(10.0),
-                  height: 200.0,
+                  // height: 200.0,
                   child: Card(
                     elevation: 5,
-                    child: SfCartesianChart(
-                        primaryXAxis: CategoryAxis(),
-                        // Chart title
-                        title: ChartTitle(text: 'Moving Average (Positif)'),
-                        // Enable legend
-                        // legend: Legend(isVisible: true),
-                        // Enable tooltip
-                        tooltipBehavior: TooltipBehavior(enable: true),
-                        series: <ChartSeries<PositifData, String>>[
-                          LineSeries<PositifData, String>(
-                              dataSource: chartPositif,
-                              xValueMapper: (PositifData sales, _) =>
-                                  sales.year,
-                              yValueMapper: (PositifData sales, _) =>
-                                  sales.sales,
-                              // Enable data label
-                              dataLabelSettings:
-                                  DataLabelSettings(isVisible: true))
-                        ]),
+                    child: Column(
+                      children: [
+                        SfCartesianChart(
+                            primaryXAxis: CategoryAxis(),
+                            // Chart title
+                            title: ChartTitle(text: 'Moving Average (Positif)'),
+                            // Enable legend
+                            // legend: Legend(isVisible: true),
+                            // Enable tooltip
+                            tooltipBehavior: TooltipBehavior(enable: true),
+                            series: <ChartSeries<PositifData, String>>[
+                              LineSeries<PositifData, String>(
+                                  dataSource: chartPositif,
+                                  xValueMapper: (PositifData sales, _) =>
+                                      sales.year,
+                                  yValueMapper: (PositifData sales, _) =>
+                                      sales.sales,
+                                  // Enable data label
+                                  dataLabelSettings:
+                                      DataLabelSettings(isVisible: true))
+                            ]),
+                        Container(
+                            margin: EdgeInsets.all(10),
+                            child: Text(
+                                'Error:' + (errPositif.abs() ?? 0).toString())),
+                      ],
+                    ),
                   )),
               Container(
                   margin: EdgeInsets.all(10.0),
-                  height: 200.0,
+                  // height: 200.0,
                   child: Card(
                     elevation: 5,
-                    child: SfCartesianChart(
-                        primaryXAxis: CategoryAxis(),
-                        // Chart title
-                        title: ChartTitle(text: 'Moving Average (Meninggal)'),
-                        // Enable legend
-                        // legend: Legend(isVisible: true),
-                        // Enable tooltip
-                        tooltipBehavior: TooltipBehavior(enable: true),
-                        series: <ChartSeries<MeninggalData, String>>[
-                          LineSeries<MeninggalData, String>(
-                              dataSource: chartMeninggal,
-                              xValueMapper: (MeninggalData sales, _) =>
-                                  sales.year,
-                              yValueMapper: (MeninggalData sales, _) =>
-                                  sales.sales,
-                              // Enable data label
-                              dataLabelSettings:
-                                  DataLabelSettings(isVisible: true))
-                        ]),
+                    child: Column(
+                      children: [
+                        SfCartesianChart(
+                            primaryXAxis: CategoryAxis(),
+                            // Chart title
+                            title:
+                                ChartTitle(text: 'Moving Average (Meninggal)'),
+                            // Enable legend
+                            // legend: Legend(isVisible: true),
+                            // Enable tooltip
+                            tooltipBehavior: TooltipBehavior(enable: true),
+                            series: <ChartSeries<MeninggalData, String>>[
+                              LineSeries<MeninggalData, String>(
+                                  dataSource: chartMeninggal,
+                                  xValueMapper: (MeninggalData sales, _) =>
+                                      sales.year,
+                                  yValueMapper: (MeninggalData sales, _) =>
+                                      sales.sales,
+                                  // Enable data label
+                                  dataLabelSettings:
+                                      DataLabelSettings(isVisible: true))
+                            ]),
+                        Container(
+                            margin: EdgeInsets.all(10),
+                            child: Text('Error:' +
+                                (errMeninggal.abs() ?? 0).toString())),
+                      ],
+                    ),
                   )),
               Card(
                 child: JsonTable(dataCovid),
